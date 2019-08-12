@@ -1,0 +1,324 @@
+###################################################################################################################
+#Sami Chowdhury
+#423006267
+#7/28/19
+###################################################################################################################
+
+
+###################################################################################################################
+#load libraries and data
+###################################################################################################################
+
+library(igraph)
+library(ggplot2)
+library(cowplot)
+library(tidyverse)
+source("contribution.R")
+nodes = read.csv("vertex.csv", header=T, as.is=T)
+links = read.csv("edges.csv", header=T, as.is=T)
+
+###################################################################################################################
+#build network from data frame
+###################################################################################################################
+
+my_network = graph_from_data_frame(d = links, vertices = nodes, directed = T)
+
+###################################################################################################################
+#resizing nodes based on interactions and coloring them based on importance (number of interactions)
+###################################################################################################################
+
+V(my_network)$size = degree(my_network, mode = "all")*0.9
+V(my_network)$importance = degree(my_network, mode = "all")
+
+V(my_network)$color = "white"
+V(my_network)[importance >= 30]$color = "#E0078D"
+V(my_network)[importance < 30 & importance >=20]$color = "#D46119"
+V(my_network)[importance < 20 & importance >=10]$color = "#199CD4"
+V(my_network)[importance < 10 & importance >=5]$color = "#10D489"
+
+colors = c("#E0078D", "#D46119" , "#199CD4", "#10D489", "white")
+
+###################################################################################################################
+#putting color to the edges
+###################################################################################################################
+
+edge.start = ends(my_network, es = E(my_network), names = F)[,1]
+edge.col = V(my_network)$color[edge.start]
+
+###################################################################################################################
+#get a nice layout
+###################################################################################################################
+
+l1 = layout_with_kk(my_network)
+l4 = layout_components(my_network)
+l6 = layout_with_graphopt(my_network)
+
+###################################################################################################################
+#making the graph look cleaner and prettier
+###################################################################################################################
+
+dev.off()
+plot(my_network, edge.arrow.size = 0.4, edge.curved = 0.2, frame = T,
+     vertex.label=V(my_network)$Label, vertex.label.cex = 0.6, edge.color = edge.col, layout=l4)
+legend(x = -1.5, y = -1.1, 
+       c("Main Character", "Major Character", "Supporting Character", "Minor Character", "Character"),
+       pch = 21, pt.bg = colors, pt.cex = 2, cex=0.8)
+
+###################################################################################################################
+#centralities computations
+###################################################################################################################
+
+###################################################################################################################
+#degree centrality
+
+in.d = degree(my_network, mode = "in")
+out.d = degree(my_network, mode = "out")
+all.d = degree(my_network, mode = "all") #ignores direction
+
+deg_frame = data.frame(character=c(nodes$Label),
+                       degree_value = all.d)
+
+results_deg = head(deg_frame[order(-deg_frame$degree_value),],10)
+
+###################################################################################################################
+#weighted degree centrality
+
+in.wd = strength(my_network, mode = "in")
+out.wd = strength(my_network, mode = "out")
+all.wd = strength(my_network, mode = "all") #ignores direction
+
+deg_weight_frame = data.frame(character=c(nodes$Label),
+                              weighted_degree_value = all.wd)
+
+results_degw = head(deg_weight_frame[order(-deg_weight_frame$weighted_degree_value),],10)
+
+###################################################################################################################
+#eigenvector centrality
+
+eigv = eigen_centrality(my_network)
+
+eigv_frame = data.frame(character=c(nodes$Label),
+                        eigen_value = eigv$vector)
+
+results_eigv = head(eigv_frame[order(-eigv_frame$eigen_value),],10)
+
+###################################################################################################################
+#betweennes centrality
+
+bet = betweenness(my_network, directed = T)
+
+bet_frame = data.frame(character=c(nodes$Label),
+                        betweenness_value= bet)
+
+results_bet = head(bet_frame[order(-bet_frame$betweenness_value),],10)
+
+###################################################################################################################
+#closeness centrality
+
+clo = closeness(my_network, mode = "all") #ignores directions
+
+clo_frame = data.frame(character=c(nodes$Label),
+                        closeness_value= clo)
+
+results_clo = head(clo_frame[order(-clo_frame$closeness_value),],10)
+
+###################################################################################################################
+#pagerank centrality
+
+pr = page_rank(my_network)
+
+pr_frame = data.frame(character=c(nodes$Label),
+                      page_rank_value= pr$vector)
+
+results_pr = head(pr_frame[order(-pr_frame$page_rank_value),],10)
+
+###################################################################################################################
+#hubs and authorities
+#by Jon Kleinberg, examines web pages. hubs - contain catalogs with large number of outgoing links
+#authorities would get many incoming links from hubs, since high-quality relevant info
+###################################################################################################################
+
+hs = hub_score(my_network)$vector
+as = authority_score(my_network)$vector
+
+hs_frame = data.frame(character=c(nodes$Label),
+                      hubscore_value= hs)
+
+results_hub = head(hs_frame[order(-hs_frame$hubscore_value),],10)
+
+
+as_frame = data.frame(character=c(nodes$Label),
+                      authority_score_value= as)
+
+results_auth = head(as_frame[order(-as_frame$authority_score_value),],10)
+
+###################################################################################################################
+#contribution centrality
+
+con = contrib_centrality(my_network)
+con_frame = data.frame(character=c(nodes$Label),
+                       contribution_value= con)
+
+results_con = head(con_frame[order(-con_frame$contribution_value),],10)
+
+
+###################################################################################################################
+# Plotting the Bar Graphs
+###################################################################################################################
+dev.off()
+
+p1 = ggplot(data = deg_frame, aes(x = character, y =degree_value)) +
+      geom_bar(stat = "identity", fill = "steelblue")+ labs(title = "Degree Centrality")
+
+p1 = p1 + coord_flip()
+
+p2 = ggplot(data = deg_weight_frame, aes(x = character, y =weighted_degree_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Weighted Degree Centrality")
+p2 = p2  + coord_flip() 
+
+p3 = ggplot(data = eigv_frame, aes(x = character, y = eigen_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Eigen Vector Centrality")
+p3 = p3 + coord_flip() 
+
+
+p4 = ggplot(data = bet_frame, aes(x = character, y =betweenness_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Betweenness Centrality")
+p4 = p4  + coord_flip() 
+
+p5 = ggplot(data = clo_frame, aes(x = character, y =closeness_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Closeness Centrality")
+p5 = p5  + coord_flip() 
+
+p6 = ggplot(data = pr_frame, aes(x = character, y =page_rank_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Page Rank Centrality")
+p6 = p6  + coord_flip() 
+
+p7 = ggplot(data = hs_frame, aes(x = character, y =hubscore_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Hub Scores")
+p7 = p7  + coord_flip() 
+
+p8 = ggplot(data = con_frame, aes(x = character, y =contribution_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Contribution Centrality")
+p8 = p8 + coord_flip() 
+
+plot_grid(p1,p2,p3,p4,
+          p5,p6,p7,p8,
+          nrow = 2, ncol = 4)  
+
+###################################################################################################################
+#pooling all the results together
+###################################################################################################################
+
+results_frame_pt1 = data.frame(results_deg, results_degw, results_eigv, results_bet)
+results_frame_pt2 = data.frame(results_clo, results_pr, results_hub, results_con)
+results_top10_pt1 = head(results_frame_pt1, 10)
+results_top10_pt2 = head(results_frame_pt2, 10)
+
+row.names(results_top10_pt1) = 1:10
+row.names(results_top10_pt2) = 1:10
+
+###################################################################################################################
+#bar plots of top 10s
+###################################################################################################################
+
+dev.off()
+rp1 = ggplot(data = results_deg, aes(x = character, y =degree_value)) +
+  geom_bar(stat = "identity", fill = "steelblue")+ labs(title = "Degree Centrality")
+
+rp1 = rp1 + coord_flip()
+
+rp2 = ggplot(data = results_degw, aes(x = character, y =weighted_degree_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Weighted Degree Centrality")
+rp2 = rp2  + coord_flip() 
+
+rp3 = ggplot(data = results_eigv, aes(x = character, y = eigen_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Eigen Vector Centrality")
+rp3 = rp3 + coord_flip() 
+
+
+rp4 = ggplot(data = results_bet, aes(x = character, y =betweenness_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Betweenness Centrality")
+rp4 = rp4  + coord_flip() 
+
+rp5 = ggplot(data = results_clo, aes(x = character, y =closeness_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Closeness Centrality")
+rp5 = rp5  + coord_flip() 
+
+rp6 = ggplot(data = results_pr, aes(x = character, y =page_rank_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Page Rank Centrality")
+rp6 = rp6  + coord_flip() 
+
+rp7 = ggplot(data = results_hub, aes(x = character, y =hubscore_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Hub Scores")
+rp7 = rp7  + coord_flip() 
+
+rp8 = ggplot(data = results_con, aes(x = character, y =contribution_value)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs(title = "Contribution Centrality")
+rp8 = rp8 + coord_flip() 
+
+plot_grid(rp1,rp2,rp3,rp4,
+          rp5,rp6,rp7,rp8,
+          nrow = 2, ncol = 4)  
+
+###################################################################################################################
+#community detection
+###################################################################################################################
+#newman girvan algorithm, high betweenness edges removed sequentially, best paritioning of network selected
+###################################################################################################################
+
+ng = cluster_edge_betweenness(as.undirected(my_network), weights = NULL)
+con_frame = data.frame(character=c(nodes$Label),
+                              val = con)
+length(ng) #number of communities
+sizes(ng) #size of each community
+modularity(ng)
+membership(ng)
+
+###################################################################################################################
+# Plotting NG community graph
+###################################################################################################################
+
+dev.off()
+plot(ng, as.undirected(my_network), layout =l4, vertex.size = degree(my_network, mode = "all")*0.9,
+     vertex.label.cex = 0.9, vertex.label = V(my_network)$Label)
+
+legend(x = -1.5, y = -1.1, 
+       c("Main Character", "Major Character", "Supporting Character", "Minor Character", "Character"),
+       pch = 21, pt.bg = colors, pt.cex = 2, cex=0.8)
+
+
+###################################################################################################################
+#louvain algortihm to compare and its plot
+###################################################################################################################
+
+lou = cluster_louvain(as.undirected(my_network))
+sizes(lou)
+modularity(lou)
+membership(lou)
+dev.off()
+plot(lou,
+     as.undirected(my_network),
+     layout=layout_with_fr,
+     vertex.size =degree(my_network, mode = "all")*0.9,
+     vertex.label.cex=0.9,
+     vertex.label = V(my_network)$Label) 
+
+legend(x = -1.5, y = -1.1, 
+       c("Main Character", "Major Character", "Supporting Character", "Minor Character", "Character"),
+       pch = 21, pt.bg = colors, pt.cex = 2, cex=0.8)
+
+###################################################################################################################
+#other clustering algorithms (not much care went into plotting these networks)
+###################################################################################################################
+
+optml = cluster_optimal(as.undirected(my_network))
+clust2 = cluster_fast_greedy(as.undirected(my_network))
+clust3 = cluster_leading_eigen(as.undirected(my_network))
+
+plot(optml, as.undirected(my_network), layout =l4, vertex.size = 3,
+     vertex.label.cex = 0.2, vertex.label = V(my_network)$Label)
+plot(clust2, as.undirected(my_network), layout =l4, vertex.size = 3,
+     vertex.label.cex = 0.2, vertex.label = V(my_network)$Label)
+plot(clust3, as.undirected(my_network), layout =l4, vertex.size = 3,
+     vertex.label.cex = 0.2, vertex.label = V(my_network)$Label)
+
